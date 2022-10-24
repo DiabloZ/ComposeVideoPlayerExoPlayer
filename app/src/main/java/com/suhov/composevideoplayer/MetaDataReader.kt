@@ -15,8 +15,10 @@ interface MetaDataReader {
 class MetaDataReaderImpl(
     private val app: Application
 ): MetaDataReader{
+    private val schemeContext = "content"
+
     override fun getMetaDataFromUri(contentUri: Uri): MetaData? {
-        if(contentUri.scheme != "content") return null
+        if(contentUri.scheme != schemeContext) return null
 
         val fileName = app.contentResolver
             .query(

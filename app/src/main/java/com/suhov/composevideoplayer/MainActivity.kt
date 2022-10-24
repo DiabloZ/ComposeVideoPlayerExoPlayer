@@ -1,7 +1,9 @@
 package com.suhov.composevideoplayer
 
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.ManagedActivityResultLauncher
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -22,15 +24,23 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.LifecycleOwner
 import androidx.media3.ui.PlayerView
 import com.suhov.composevideoplayer.ui.theme.ComposeVideoPlayerTheme
+import com.suhov.composevideoplayer.ui.theme.ratioOfVideo
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+
+    private val videoExtension = "video/mp4"
+    private val selectButtonDescription = "Select video"
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        setContent()
+    }
+
+    private fun setContent() {
         setContent {
             ComposeVideoPlayerTheme {
                 val viewModel = hiltViewModel<MainViewModel>()
@@ -45,7 +55,7 @@ class MainActivity : ComponentActivity() {
                     mutableStateOf(Lifecycle.Event.ON_CREATE)
                 }
                 val lifecycleOwner = LocalLifecycleOwner.current
-                DisposableEffect(lifecycleOwner){
+                DisposableEffect(lifecycleOwner) {
                     val observer = LifecycleEventObserver { _, event -> lifecycle = event }
                     lifecycleOwner.lifecycle.addObserver(observer)
                     onDispose {
@@ -58,55 +68,76 @@ class MainActivity : ComponentActivity() {
                         .fillMaxSize()
                         .padding(16.dp)
                 ) {
-                    AndroidView(
-                        factory = { context ->
-                            PlayerView(context).apply{
-                                player = viewModel.player
-                            }
-                        },
-                        update = {
-                            when(lifecycle){
-                                Lifecycle.Event.ON_PAUSE -> {
-                                    it.onPause()
-                                    it.player?.pause()
-                                }
-                                Lifecycle.Event.ON_RESUME -> {
-                                    it.onResume()
-                                }
-                                else -> Unit
-                            }
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .aspectRatio(16 / 9f)
-                    )
+                    VideoPlayer(viewModel, lifecycle)
                     Spacer(modifier = Modifier.height(8.dp))
-                    IconButton(onClick = {
-                        selectVideoLauncher.launch("video/mp4")
-                    }) {
-                        Icon(
-                            imageVector = Icons.Default.FileOpen,
-                            contentDescription = "Select video"
-                        )
-                    }
+                    GetFileButton(selectVideoLauncher)
                     Spacer(modifier = Modifier.height(16.dp))
-                    LazyColumn(
-                        modifier = Modifier.fillMaxWidth()
-                    ){
-                        items(videoItems){ item ->
-                            Text(
-                                text = item.name,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        viewModel.playVideo(item.contentUri)
-                                    }
-                                    .padding(16.dp)
-                            )
-                        }
-                    }
+                    ListOfFiles(videoItems, viewModel)
                 }
             }
         }
+    }
+
+    @Composable
+    private fun GetFileButton(selectVideoLauncher: ManagedActivityResultLauncher<String, Uri>) {
+        IconButton(onClick = {
+            selectVideoLauncher.launch(videoExtension)
+        }) {
+            Icon(
+                imageVector = Icons.Default.FileOpen,
+                contentDescription = selectButtonDescription
+            )
+        }
+    }
+
+    @Composable
+    private fun ListOfFiles(
+        videoItems: List<VideoItem>,
+        viewModel: MainViewModel
+    ) {
+        LazyColumn(
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            items(videoItems) { item ->
+                Text(
+                    text = item.name,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            viewModel.playVideo(item.contentUri)
+                        }
+                        .padding(16.dp)
+                )
+            }
+        }
+    }
+
+    @Composable
+    private fun VideoPlayer(
+        viewModel: MainViewModel,
+        lifecycle: Lifecycle.Event
+    ) {
+        AndroidView(
+            factory = { context ->
+                PlayerView(context).apply {
+                    player = viewModel.player
+                }
+            },
+            update = { playerView ->
+                when (lifecycle) {
+                    Lifecycle.Event.ON_PAUSE -> {
+                        playerView.onPause()
+                        playerView.player?.pause()
+                    }
+                    Lifecycle.Event.ON_RESUME -> {
+                        playerView.onResume()
+                    }
+                    else -> Unit
+                }
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(ratioOfVideo)
+        )
     }
 }
